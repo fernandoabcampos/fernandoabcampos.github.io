@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+<head>
+    <style>
+        rect.bordered {
+            stroke: #E6E6E6;
+            stroke-width:2px;
+        }
+
+        .mono {
+            font-size: 9pt;
+            font-family: Arial,"Helvetica Neue",Helvetica,sans-serif;
+            fill: #111;
+        }
+
+        text.axis-method {
+            fill: #111;
+        }
+
+        text.axis-sensitivity {
+            fill: #111;
+        }
+        h1,h2,h3 {
+            font-family: Arial,"Helvetica Neue",Helvetica,sans-serif;
+        }
+
+        .rotate {
+            -webkit-transform: rotate(-90deg);
+            -moz-transform: rotate(-90deg);
+            -ms-transform: rotate(-90deg);
+            -o-transform: rotate(-90deg);
+            filter: progid:DXImageTransform.Microsoft.BasicImage(rotation=3);
+        }
+    </style>
+    <script src="http://d3js.org/d3.v3.js"></script>
+</head>
+<body>
+<div style="position: absolute; margin-top: 100px; margin-left: 600px; border: 1px solid #aaa; padding-right: 14px">
+    <ol class="mono"> <!-- style="color: #aaa; font-size: 9pt; font-family: Consolas, courier;">-->
+        <li>Just email address/Online information</li>
+        <li>SSN/Personal details</li>
+        <li>Credit card information</li>
+        <li>Health & other personal records</li>
+        <li>Full details</li>
+    </ol>
+</div>
+<div style="position: absolute; margin-top: 270px; margin-left: 10px;">
+    <h3 class="rotate">Method</h3>
+</div>
+<div style="position: absolute; margin-top: 40px; margin-left: 300px;">
+    <h3>Data Sensitivity</h3>
+</div>
+<h1>HeatMap: Data Breach exploration Method X Data Sensitivity</h1>
+<div id="chart"></div>
+<div id="dataset-picker">
+</div>
+
+<script type="text/javascript">
+    var margin = { top: 50, right: 0, bottom: 100, left: 150 },
+        width = 2160 - margin.left - margin.right,
+        height = 630 - margin.top - margin.bottom,
+        gridSize = Math.floor(width / 24),
+        legendElementWidth = gridSize - 10,
+        buckets = 9,
+        colors = ["#ffffd9","#edf8b1","#c7e9b4","#7fcdbb","#41b6c4","#1d91c0","#225ea8","#253494","#081d58"],
+        methods = ["Hacked", "Inside Job", "Lost Device", "Oops!", "Poor Security"],
+        sensitivity = ["1", "2", "3", "4", "5"];
+        //sensitivity = ["Just email address/Online information", "SSN/Personal details", "Credit card information", "Health & other personal records", "Full details"];
+    datasets = ["prepared-data-breaches.csv"];
+
+
+    var svg = d3.select("#chart").append("svg")
+        .attr("width", width + margin.left + margin.right)
+        .attr("height", height + margin.top + margin.bottom)
+        .append("g")
+        .attr("transform", "translate(" + margin.left + "," + margin.top + ")");
+
+    var methodLabels = svg.selectAll(".methodLabel")
+        .data(methods)
+        .enter().append("text")
+        .text(function (d) { return d; })
+        .attr("x", 0)
+        .attr("y", function (d, i) { return i * gridSize; })
+        .style("text-anchor", "end")
+        .attr("transform", "translate(-6," + gridSize / 1.5 + ")")
+        .attr("class", function (d, i) { return ((i >= 0 && i <= 4) ? "methodLabel mono axis axis-method" : "methodLabel mono axis"); });
+
+    var sensitivityLabels = svg.selectAll(".sensitivityLabel")
+        .data(sensitivity)
+        .enter().append("text")
+        .text(function(d) { return d; })
+        .attr("x", function(d, i) { return i * gridSize; })
+        .attr("y", 0)
+        .style("text-anchor", "middle")
+        .attr("transform", "translate(" + gridSize / 2 + ", -6)")
+        .attr("class", function(d, i) { return ((i >= 7 && i <= 16) ? "sensitivityLabel mono axis axis-sensitivity" : "sensitivityLabel mono axis"); });
+
+    var heatmapChart = function(csvFile) {
+        d3.csv(csvFile,
+            function(d) {
+                return {
+                    method: +d.method,
+                    sensitivity: +d.sensitivity,
+                    value: +d.value
+                };
+            },
+            function(error, data) {
+                var colorScale = d3.scale.quantile()
+                    .domain([0, buckets - 1, d3.max(data, function (d) { return d.value; })])
+                    .range(colors);
+
+                var cards = svg.selectAll(".sensitivity")
+                    .data(data, function(d) {return d.method+':'+d.sensitivity;});
+
+                cards.append("title");
+
+                cards.enter().append("rect")
+                    .attr("x", function(d) { return (d.sensitivity - 1) * gridSize; })
+                    .attr("y", function(d) { return (d.method - 1) * gridSize; })
+                    .attr("rx", 4)
+                    .attr("ry", 4)
+                    .attr("class", "sensitivity bordered")
+                    .attr("width", gridSize)
+                    .attr("height", gridSize)
+                    .style("fill", colors[0]);
+
+                cards.transition().duration(1000)
+                    .style("fill", function(d) { return colorScale(d.value); });
+
+                cards.select("title").text(function(d) { return d.value; });
+
+                cards.exit().remove();
+
+                var legend = svg.selectAll(".legend")
+                    .data([0].concat(colorScale.quantiles()), function(d) { return d; });
+
+                legend.enter().append("g")
+                    .attr("class", "legend");
+
+                legend.append("rect")
+                    .attr("x", function(d, i) { return legendElementWidth * i; })
+                    .attr("y", height)
+                    .attr("width", legendElementWidth)
+                    .attr("height", gridSize / 4)
+                    .style("fill", function(d, i) { return colors[i]; });
+
+                legend.append("text")
+                    .attr("class", "mono")
+                    .text(function(d) { return "≥ " + Math.round(d); })
+                    .attr("x", function(d, i) { return legendElementWidth * i + 20; })
+                    .attr("y", height - 4);
+
+                legend.exit().remove();
+
+            });
+    };
+
+    heatmapChart(datasets[0]);
+
+    var datasetpicker = d3.select("#dataset-picker").selectAll(".dataset-button")
+        .data(datasets);
+
+    datasetpicker.enter()
+        .append("input")
+        .attr("value", function(d){ return "Dataset " + d })
+        .attr("type", "button")
+        .attr("class", "dataset-button")
+        .on("click", function(d) {
+            heatmapChart(d);
+        });
+</script>
+</body>
+</html>
